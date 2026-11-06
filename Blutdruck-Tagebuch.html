@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Blutdruck">
+<meta name="theme-color" content="#b3261e">
+<title>Blutdruck-Tagebuch</title>
+<style>
+  :root {
+    --bg: #f6f4f2;
+    --card: #ffffff;
+    --text: #1d1b1a;
+    --muted: #6b6560;
+    --line: #e4dfda;
+    --accent: #b3261e;
+    --accent-text: #ffffff;
+    --danger: #b3261e;
+    --ok: #2e7d32;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151312;
+      --card: #211e1d;
+      --text: #f1ece8;
+      --muted: #a39b94;
+      --line: #36312e;
+      --accent: #e8665d;
+      --accent-text: #1d0b09;
+      --danger: #ff8a80;
+      --ok: #81c784;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 4px 0 16px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 18px; /* mind. 16px, sonst zoomt iOS beim Fokussieren */
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  textarea { font-size: 16px; resize: vertical; min-height: 44px; }
+  input:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .field { margin-top: 12px; }
+  .unit { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    min-height: 48px;
+    padding: 0 18px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button.primary {
+    width: 100%;
+    margin-top: 16px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+  }
+  button.small { min-height: 40px; padding: 0 12px; font-weight: 500; }
+  button.link { border: 0; background: none; color: var(--danger); min-height: 40px; padding: 0 8px; font-weight: 500; }
+  .error { color: var(--danger); font-size: 14px; margin-top: 10px; min-height: 20px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .toolbar button { flex: 1 1 auto; }
+  select {
+    font: inherit;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 44px;
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.entry { border-top: 1px solid var(--line); padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; }
+  li.entry:first-child { border-top: 0; }
+  .when { font-size: 13px; color: var(--muted); }
+  .vals { font-size: 20px; font-weight: 700; }
+  .vals small { font-weight: 400; color: var(--muted); font-size: 14px; }
+  .note { font-size: 14px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+  .empty { color: var(--muted); text-align: center; padding: 16px 0; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .warn { background: #fff3cd; color: #5c4500; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 16px; }
+  .sr { position: absolute; left: -9999px; }
+  #printView { display: none; }
+
+  @media print {
+    body { background: #fff; color: #000; padding: 0; font-size: 12pt; }
+    main { display: none; }
+    #printView { display: block; }
+    #printView h1 { font-size: 18pt; }
+    #printView table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    #printView th, #printView td { border: 1px solid #888; padding: 6px 8px; text-align: left; font-size: 11pt; }
+    #printView th { background: #eee; }
+    #printView .meta { font-size: 11pt; margin: 4px 0; }
+    #printView .foot { font-size: 9pt; color: #444; margin-top: 16px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Blutdruck-Tagebuch</h1>
+
+  <div id="storageWarn" class="warn" hidden>
+    Speichern im Browser ist hier nicht möglich (z. B. privater Modus). Deine Einträge gehen verloren,
+    sobald du die Seite schließt. Exportiere sie vorher.
+  </div>
+
+  <form id="form" class="card" novalidate>
+    <h2>Neuer Messwert</h2>
+    <div class="grid">
+      <div>
+        <label for="sys">Oben (sys.)</label>
+        <input id="sys" type="number" inputmode="numeric" min="50" max="260" placeholder="120" autocomplete="off">
+        <div class="unit">mmHg</div>
+      </div>
+      <div>
+        <label for="dia">Unten (dia.)</label>
+        <input id="dia" type="number" inputmode="numeric" min="30" max="160" placeholder="80" autocomplete="off">
+        <div class="unit">mmHg</div>
+      </div>
+      <div>
+        <label for="pulse">Puls</label>
+        <input id="pulse" type="number" inputmode="numeric" min="25" max="220" placeholder="70" autocomplete="off">
+        <div class="unit">pro Minute</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="when">Datum und Uhrzeit</label>
+      <input id="when" type="datetime-local">
+    </div>
+    <div class="field">
+      <label for="note">Notiz (optional, z. B. nach dem Sport)</label>
+      <textarea id="note" rows="1" maxlength="200"></textarea>
+    </div>
+    <div id="error" class="error" role="alert"></div>
+    <button class="primary" type="submit">Speichern</button>
+  </form>
+
+  <section class="card">
+    <div class="row">
+      <h2 style="margin:0">Verlauf</h2>
+      <label class="sr" for="range">Zeitraum</label>
+      <select id="range">
+        <option value="7">Letzte 7 Tage</option>
+        <option value="30">Letzte 30 Tage</option>
+        <option value="90">Letzte 90 Tage</option>
+        <option value="0" selected>Alle</option>
+      </select>
+    </div>
+    <div id="stats" class="stats"></div>
+    <ul id="list"></ul>
+  </section>
+
+  <section class="card">
+    <h2>An den Arzt senden</h2>
+    <div class="toolbar">
+      <button id="btnPdf" type="button">PDF speichern</button>
+      <button id="btnShare" type="button">Teilen</button>
+      <button id="btnCsv" type="button">Tabelle (CSV)</button>
+      <button id="btnPrint" type="button">Drucken</button>
+      <button id="btnMail" type="button">Per E-Mail</button>
+      <button id="btnCopy" type="button">Text kopieren</button>
+    </div>
+    <div id="exportMsg" class="error" role="status"></div>
+    <textarea id="exportText" rows="8" readonly hidden aria-label="Messwerte als Text"></textarea>
+    <div class="hint">
+      Es wird der oben gewählte Zeitraum exportiert. „PDF speichern“ erzeugt direkt eine PDF-Datei zum
+      Weiterschicken. Die CSV-Datei lässt sich in Excel öffnen.
+    </div>
+  </section>
+
+  <p class="hint">
+    Die Einträge liegen nur auf diesem Gerät, im Browser. Deshalb ab und zu exportieren. Die App ersetzt
+    keine ärztliche Beratung.
+  </p>
+</main>
+
+<div id="printView" aria-hidden="true"></div>
+
+<script>
+"use strict";
+
+const KEY = "blutdruck-tagebuch-v1";
+const $ = (id) => document.getElementById(id);
+let entries = [];
+let storageOk = true;
+
+// ---------- Speicher ----------
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    const data = raw ? JSON.parse(raw) : [];
+    entries = Array.isArray(data) ? data : [];
+  } catch (e) {
+    entries = [];
+    storageOk = false;
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(entries));
+  } catch (e) {
+    storageOk = false;
+  }
+  $("storageWarn").hidden = storageOk;
+}
+
+// ---------- Hilfsfunktionen ----------
+const pad = (n) => String(n).padStart(2, "0");
+
+function nowLocalInput() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parts(when) {
+  const [date, time] = when.split("T");
+  const [y, m, d] = date.split("-");
+  return { date: `${d}.${m}.${y}`, time };
+}
+
+function inRange() {
+  const days = Number($("range").value);
+  // neueste zuerst; bei gleicher Minute entscheidet die Reihenfolge des Anlegens (id ist zeitbasiert)
+  const sorted = [...entries].sort((a, b) => b.when.localeCompare(a.when) || b.id.localeCompare(a.id));
+  if (!days) return sorted;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  const limit = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())}T00:00`;
+  return sorted.filter((e) => e.when >= limit);
+}
+
+function avg(list, key) {
+  if (!list.length) return null;
+  return Math.round(list.reduce((s, e) => s + e[key], 0) / list.length);
+}
+
+function rangeLabel() {
+  const days = Number($("range").value);
+  return days ? `Letzte ${days} Tage` : "Alle Einträge";
+}
+
+// ---------- Anzeige ----------
+function render() {
+  const list = inRange();
+  const stats = $("stats");
+  stats.replaceChildren();
+  if (list.length) {
+    for (const [label, value] of [
+      ["Ø oben/unten", `${avg(list, "sys")}/${avg(list, "dia")}`],
+      ["Ø Puls", String(avg(list, "pulse"))],
+      ["Messungen", String(list.length)],
+    ]) {
+      const box = document.createElement("div");
+      box.className = "stat";
+      const b = document.createElement("b");
+      b.textContent = value;
+      const s = document.createElement("span");
+      s.textContent = label;
+      box.append(b, s);
+      stats.append(box);
+    }
+  }
+
+  const ul = $("list");
+  ul.replaceChildren();
+  if (!list.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Noch keine Einträge in diesem Zeitraum.";
+    ul.append(li);
+    return;
+  }
+  for (const e of list) {
+    const p = parts(e.when);
+    const li = document.createElement("li");
+    li.className = "entry";
+
+    const left = document.createElement("div");
+    const when = document.createElement("div");
+    when.className = "when";
+    when.textContent = `${p.date}, ${p.time} Uhr`;
+    const vals = document.createElement("div");
+    vals.className = "vals";
+    vals.append(`${e.sys}/${e.dia} `);
+    const unit = document.createElement("small");
+    unit.textContent = `mmHg · Puls ${e.pulse}`;
+    vals.append(unit);
+    left.append(when, vals);
+    if (e.note) {
+      const n = document.createElement("div");
+      n.className = "note";
+      n.textContent = e.note;
+      left.append(n);
+    }
+
+    const del = document.createElement("button");
+    del.className = "link";
+    del.type = "button";
+    del.textContent = "Löschen";
+    del.setAttribute("aria-label", `Eintrag vom ${p.date}, ${p.time} löschen`);
+    del.addEventListener("click", () => {
+      if (confirm("Diesen Eintrag löschen?")) {
+        entries = entries.filter((x) => x.id !== e.id);
+        save();
+        render();
+      }
+    });
+
+    li.append(left, del);
+    ul.append(li);
+  }
+}
+
+// ---------- Eingabe ----------
+$("form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const sys = Number($("sys").value);
+  const dia = Number($("dia").value);
+  const pulse = Number($("pulse").value);
+  const when = $("when").value;
+  const err = $("error");
+
+  if (![sys, dia, pulse].every((v) => Number.isInteger(v) && v > 0)) {
+    err.textContent = "Bitte oben, unten und Puls als ganze Zahlen eintragen.";
+    return;
+  }
+  if (sys < 50 || sys > 260 || dia < 30 || dia > 160 || pulse < 25 || pulse > 220) {
+    err.textContent = "Ein Wert ist unrealistisch. Bitte noch einmal prüfen (oben 50–260, unten 30–160, Puls 25–220).";
+    return;
+  }
+  if (dia >= sys) {
+    err.textContent = "Der untere Wert muss kleiner als der obere sein.";
+    return;
+  }
+  if (!when) {
+    err.textContent = "Bitte Datum und Uhrzeit angeben.";
+    return;
+  }
+
+  err.textContent = "";
+  entries.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    when, sys, dia, pulse,
+    note: $("note").value.trim(),
+  });
+  save();
+  $("sys").value = "";
+  $("dia").value = "";
+  $("pulse").value = "";
+  $("note").value = "";
+  $("when").value = nowLocalInput();
+  render();
+  $("sys").focus();
+});
+
+$("range").addEventListener("change", render);
+
+// ---------- Export ----------
+function csvCell(v) {
+  const s = String(v);
+  return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildCsv(list) {
+  const rows = [["Datum", "Uhrzeit", "Systolisch (mmHg)", "Diastolisch (mmHg)", "Puls (1/min)", "Notiz"]];
+  // chronologisch, ältester zuerst: so liest man es als Arzt
+  for (const e of [...list].reverse()) {
+    const p = parts(e.when);
+    rows.push([p.date, p.time, e.sys, e.dia, e.pulse, e.note || ""]);
+  }
+  // Semikolon + BOM: öffnet sich in deutschem Excel korrekt mit Umlauten
+  return "﻿" + rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
+}
+
+function csvFile(list) {
+  const stamp = nowLocalInput().slice(0, 10);
+  return new File([buildCsv(list)], `blutdruck-${stamp}.csv`, { type: "text/csv;charset=utf-8" });
+}
+
+function exportMsg(text, isError = true) {
+  const el = $("exportMsg");
+  el.textContent = text;
+  el.style.color = isError ? "var(--danger)" : "var(--ok)";
+}
+
+function requireEntries() {
+  exportMsg("");
+  $("exportText").hidden = true;
+  const list = inRange();
+  if (!list.length) {
+    exportMsg("Im gewählten Zeitraum gibt es keine Einträge. Oben unter „Verlauf“ „Alle“ wählen.");
+    return null;
+  }
+  return list;
+}
+
+// Text zum Markieren und Kopieren, falls das Gerät weder Download noch Zwischenablage erlaubt
+function showText(list) {
+  const box = $("exportText");
+  box.value = summaryText(list);
+  box.hidden = false;
+  box.focus();
+  box.select();
+}
+
+function downloadFile(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// iPhone/iPad (auch iPadOS, das sich als Mac meldet)
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+// Auf iOS ist das Teilen-Menü der zuverlässige Weg (In Dateien sichern, Drucken, Mail, WhatsApp).
+// Der normale Download klappt dort im Safari-Tab nur manchmal und in der Home-Bildschirm-App oft gar nicht.
+async function saveAs(makeFile) {
+  const list = requireEntries();
+  if (!list) return;
+  let file;
+  try {
+    file = makeFile(list);
+  } catch (e) {
+    exportMsg("Die Datei konnte nicht erstellt werden. Hier ist der Text zum Kopieren:");
+    showText(list);
+    return;
+  }
+  if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: file.name });
+      exportMsg("Fertig. Im Menü „In Dateien sichern“ wählen, um die Datei abzulegen.", false);
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // Nutzer hat abgebrochen
+      // sonst weiter mit Download
+    }
+  }
+  try {
+    downloadFile(file);
+    exportMsg(`Datei „${file.name}“ wird geladen. Sie liegt danach im Ordner Downloads bzw. in der Dateien-App.`, false);
+  } catch (e) {
+    exportMsg("Der Download geht auf diesem Gerät nicht. Bitte „Teilen“ oder „Drucken“ nehmen, oder den Text hier kopieren:");
+    showText(list);
+  }
+}
+
+$("btnCsv").addEventListener("click", () => saveAs(csvFile));
+$("btnPdf").addEventListener("click", () => saveAs(pdfFile));
+
+// ---------- PDF ohne Zusatzbibliothek (Standardschrift Helvetica, A4) ----------
+const WIN_ANSI = { "„": 0x84, "“": 0x93, "”": 0x94, "‘": 0x91, "’": 0x92, "–": 0x96, "—": 0x97, "€": 0x80, "…": 0x85, "•": 0x95 };
+
+function pdfText(s) {
+  let out = "";
+  for (const ch of String(s)) {
+    const c = ch.charCodeAt(0);
+    let o;
+    if (c < 128 || (c >= 160 && c <= 255)) o = ch;
+    else if (WIN_ANSI[ch]) o = String.fromCharCode(WIN_ANSI[ch]);
+    else o = "?";
+    out += o === "\\" || o === "(" || o === ")" ? "\\" + o : o;
+  }
+  return out.replace(/[\r\n]+/g, " ");
+}
+
+// Helvetica-Zeichenbreiten (pro 1000 em) für ASCII 32..126; alles andere wird großzügig mit 667 gerechnet
+const HELV = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+function textWidth(s, size) {
+  let w = 0;
+  for (const ch of String(s)) {
+    const c = ch.charCodeAt(0);
+    w += (c >= 32 && c <= 126 ? HELV[c - 32] : 667);
+  }
+  return w * size / 1000;
+}
+
+function wrapText(s, maxWidth, size = 10) {
+  const lines = [];
+  let cur = "";
+  for (const word of String(s).split(/\s+/).filter(Boolean)) {
+    let w = word;
+    while (textWidth(w, size) > maxWidth) { // sehr lange Wörter hart trennen
+      if (cur) { lines.push(cur); cur = ""; }
+      let n = w.length;
+      while (n > 1 && textWidth(w.slice(0, n), size) > maxWidth) n--;
+      lines.push(w.slice(0, n));
+      w = w.slice(n);
+    }
+    if (!cur) cur = w;
+    else if (textWidth(cur + " " + w, size) <= maxWidth) cur += " " + w;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [""];
+}
+
+function buildPdf(list) {
+  const W = 595, H = 842, M = 40;
+  const pages = [];
+  let y = 0;
+  const add = (s) => { pages[pages.length - 1] += s; };
+  const text = (s, x, yy, size = 10, bold = false) =>
+    add(`BT /${bold ? "F2" : "F1"} ${size} Tf ${x} ${yy} Td (${pdfText(s)}) Tj ET\n`);
+  const hline = (yy, grey) => add(`${grey} G 0.5 w ${M} ${yy} m ${W - M} ${yy} l S 0 G\n`);
+  const cols = [["Datum", 40], ["Uhrzeit", 112], ["Oben", 166], ["Unten", 216], ["Puls", 268], ["Notiz", 316]];
+
+  function header() {
+    for (const [t, x] of cols) text(t, x, y - 11, 10, true);
+    y -= 17;
+    hline(y, 0);
+    y -= 4;
+  }
+  function newPage() {
+    pages.push("");
+    y = H - M;
+  }
+
+  newPage();
+  text("Blutdruck- und Pulswerte", M, y - 14, 16, true);
+  y -= 30;
+  text(`${rangeLabel()} · ${list.length} Messungen`, M, y - 10);
+  y -= 15;
+  text(`Durchschnitt: ${avg(list, "sys")}/${avg(list, "dia")} mmHg, Puls ${avg(list, "pulse")} pro Minute`, M, y - 10);
+  y -= 15;
+  const now = parts(nowLocalInput());
+  text(`Erstellt am ${now.date}, ${now.time} Uhr`, M, y - 10);
+  y -= 15;
+  text("Werte in mmHg (oben/unten), Puls pro Minute", M, y - 10, 9);
+  y -= 24;
+  header();
+
+  for (const e of [...list].reverse()) {
+    const p = parts(e.when);
+    const noteLines = wrapText(e.note || "", W - M - 316);
+    const rowH = noteLines.length * 13 + 5;
+    if (y - rowH < M + 30) {
+      newPage();
+      header();
+    }
+    const base = y - 11;
+    text(p.date, 40, base);
+    text(p.time, 112, base);
+    text(String(e.sys), 166, base);
+    text(String(e.dia), 216, base);
+    text(String(e.pulse), 268, base);
+    noteLines.forEach((l, i) => text(l, 316, base - i * 13));
+    y -= rowH;
+    hline(y, 0.8);
+  }
+
+  pages.forEach((_, i) => {
+    pages[i] += `BT /F1 8 Tf ${M} 22 Td (${pdfText(`Selbst gemessene Werte aus dem Blutdruck-Tagebuch, keine ärztliche Diagnose. Seite ${i + 1} von ${pages.length}`)}) Tj ET\n`;
+  });
+
+  // Objekte: 1 Katalog, 2 Seitenbaum, 3/4 Schriften, danach je Seite (Seite, Inhalt)
+  const objs = [];
+  const firstPage = 5;
+  const kids = pages.map((_, i) => `${firstPage + i * 2} 0 R`).join(" ");
+  objs[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objs[2] = `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`;
+  objs[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+  objs[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
+  pages.forEach((content, i) => {
+    objs[firstPage + i * 2] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${firstPage + i * 2 + 1} 0 R >>`;
+    objs[firstPage + i * 2 + 1] = `<< /Length ${content.length} >>\nstream\n${content}endstream`;
+  });
+
+  let out = "%PDF-1.4\n";
+  const offsets = [];
+  for (let k = 1; k < objs.length; k++) {
+    offsets[k] = out.length;
+    out += `${k} 0 obj\n${objs[k]}\nendobj\n`;
+  }
+  const xref = out.length;
+  out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+  for (let k = 1; k < objs.length; k++) out += `${String(offsets[k]).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+
+function pdfFile(list) {
+  const stamp = nowLocalInput().slice(0, 10);
+  return new File([buildPdf(list)], `blutdruck-${stamp}.pdf`, { type: "application/pdf" });
+}
+
+$("btnShare").addEventListener("click", async () => {
+  const list = requireEntries();
+  if (!list) return;
+  const text = summaryText(list);
+  if (!navigator.share) {
+    // Teilen gibt es nur in sicherem Kontext (https) und nicht in jedem Browser
+    exportMsg("Teilen geht hier nicht (die Seite muss über https geöffnet sein). Bitte „Per E-Mail“ oder „Text kopieren“ nehmen.");
+    return;
+  }
+  try {
+    const file = pdfFile(list);
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Blutdruck-Messwerte", text });
+    } else {
+      await navigator.share({ title: "Blutdruck-Messwerte", text });
+    }
+  } catch (e) {
+    if (e && e.name !== "AbortError") {
+      exportMsg("Teilen hat nicht geklappt. Bitte „Per E-Mail“ oder „Text kopieren“ nehmen.");
+    }
+  }
+});
+
+$("btnMail").addEventListener("click", () => {
+  const list = requireEntries();
+  if (!list) return;
+  const subject = encodeURIComponent(`Blutdruck-Messwerte (${rangeLabel()})`);
+  const body = encodeURIComponent(summaryText(list));
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  exportMsg("Dein Mailprogramm sollte sich mit dem Text öffnen. Sonst „Text kopieren“ nehmen.", false);
+});
+
+$("btnCopy").addEventListener("click", async () => {
+  const list = requireEntries();
+  if (!list) return;
+  try {
+    await navigator.clipboard.writeText(summaryText(list));
+    exportMsg("Text kopiert. Jetzt in eine Nachricht oder Mail einfügen.", false);
+  } catch (e) {
+    exportMsg("Kopieren geht hier nicht automatisch. Den Text unten markieren und kopieren:");
+    showText(list);
+  }
+});
+
+function summaryText(list) {
+  const lines = [...list].reverse().map((e) => {
+    const p = parts(e.when);
+    return `${p.date} ${p.time}  ${e.sys}/${e.dia} mmHg  Puls ${e.pulse}` + (e.note ? `  (${e.note})` : "");
+  });
+  return `Blutdruck-Messwerte (${rangeLabel()})\n` +
+    `Durchschnitt: ${avg(list, "sys")}/${avg(list, "dia")} mmHg, Puls ${avg(list, "pulse")}\n\n` +
+    lines.join("\n");
+}
+
+$("btnPrint").addEventListener("click", () => {
+  const list = requireEntries();
+  if (!list) return;
+  const view = $("printView");
+  exportMsg("Im Druckmenü „Als PDF sichern“ bzw. „Teilen“ wählen, falls kein Drucker da ist.", false);
+  view.replaceChildren();
+
+  const h = document.createElement("h1");
+  h.textContent = "Blutdruck- und Pulswerte";
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = `${rangeLabel()} · ${list.length} Messungen · Durchschnitt ${avg(list, "sys")}/${avg(list, "dia")} mmHg, Puls ${avg(list, "pulse")}`;
+  const created = document.createElement("div");
+  created.className = "meta";
+  const now = parts(nowLocalInput());
+  created.textContent = `Erstellt am ${now.date}, ${now.time} Uhr`;
+
+  const table = document.createElement("table");
+  const head = table.createTHead().insertRow();
+  for (const t of ["Datum", "Uhrzeit", "Oben (mmHg)", "Unten (mmHg)", "Puls (1/min)", "Notiz"]) {
+    const th = document.createElement("th");
+    th.textContent = t;
+    head.append(th);
+  }
+  const body = table.createTBody();
+  for (const e of [...list].reverse()) {
+    const p = parts(e.when);
+    const tr = body.insertRow();
+    for (const v of [p.date, p.time, e.sys, e.dia, e.pulse, e.note || ""]) {
+      tr.insertCell().textContent = String(v);
+    }
+  }
+  const foot = document.createElement("div");
+  foot.className = "foot";
+  foot.textContent = "Selbst gemessene Werte aus dem Blutdruck-Tagebuch. Keine ärztliche Diagnose.";
+
+  view.append(h, meta, created, table, foot);
+  window.print();
+});
+
+// ---------- Start ----------
+load();
+$("when").value = nowLocalInput();
+$("storageWarn").hidden = storageOk;
+render();
+</script>
+</body>
+</html>
